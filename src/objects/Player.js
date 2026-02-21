@@ -48,15 +48,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.input.keyboard.on('keydown-D', () => this.switchLane(1));
     scene.input.keyboard.on('keydown-SPACE', () => this.fire(scene.time.now));
 
-    // Touch / click: left third = move left, center third = fire, right third = move right
+    // Touch / click: tap your lane to shoot, tap another lane to move toward it
     scene.input.on('pointerdown', (pointer) => {
-      const third = scene.scale.width / 3;
-      if (pointer.x < third) {
-        this.switchLane(-1);
-      } else if (pointer.x > third * 2) {
-        this.switchLane(1);
-      } else {
+      const tappedLane = this.getTappedLane(pointer.x);
+      if (tappedLane === this.lane) {
         this.fire(scene.time.now);
+      } else if (tappedLane < this.lane) {
+        this.switchLane(-1);
+      } else {
+        this.switchLane(1);
       }
     });
   }
@@ -77,6 +77,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         this.setTexture('ship');
       },
     });
+  }
+
+  getTappedLane(x) {
+    const laneCount = this.lanePositions.length;
+    const width = this.scene.scale.width;
+    const sectionWidth = width / laneCount;
+    const lane = Math.floor(x / sectionWidth);
+    return Phaser.Math.Clamp(lane, 0, laneCount - 1);
   }
 
   update() {
