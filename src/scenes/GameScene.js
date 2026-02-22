@@ -8,6 +8,7 @@ import ScoreManager from '../systems/ScoreManager.js';
 import SaveManager from '../systems/SaveManager.js';
 
 const ASTEROID_POOL = 15;
+const BANNER_MAX_W = 500;
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -81,10 +82,9 @@ export default class GameScene extends Phaser.Scene {
       loop: true,
     });
 
-    // ESC to menu
-    this.input.keyboard.on('keydown-ESC', () => {
-      this.scene.start('MenuScene');
-    });
+    // ESC to pause
+    this.input.keyboard.on('keydown-ESC', () => this.togglePause());
+    this.isPaused = false;
 
     // Screen flash overlay
     this.flashOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0xff0000, 0)
@@ -145,7 +145,7 @@ export default class GameScene extends Phaser.Scene {
     this.updateHearts();
 
     // Challenge prompt (top center with bg)
-    this.promptBg = this.add.rectangle(width / 2, 80, width - 32, 40, 0x000000, 0.5)
+    this.promptBg = this.add.rectangle(width / 2, 80, Math.min(width - 32, BANNER_MAX_W), 40, 0x000000, 0.5)
       .setDepth(49).setScrollFactor(0);
 
     this.promptText = this.add.text(width / 2, 80, '', {
@@ -156,6 +156,98 @@ export default class GameScene extends Phaser.Scene {
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(50).setScrollFactor(0);
+
+    // Pause button (top right, below hearts)
+    this.pauseBtn = this.add.text(width - 16, 56, '| |', {
+      fontSize: '18px',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+      color: '#aaaacc',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(1, 0).setDepth(50).setScrollFactor(0)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', (p) => { p.event.stopPropagation(); this.togglePause(); });
+  }
+
+  togglePause() {
+    if (this.isPaused) {
+      this.resumeGame();
+    } else {
+      this.pauseGame();
+    }
+  }
+
+  pauseGame() {
+    if (this.isPaused) return;
+    this.isPaused = true;
+    this.physics.pause();
+    this.asteroidTimer.paused = true;
+    this.tweens.pauseAll();
+
+    const { width, height } = this.scale;
+
+    this.pauseOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
+      .setDepth(200).setScrollFactor(0);
+
+    this.pauseTitle = this.add.text(width / 2, height * 0.35, 'PAUSED', {
+      fontSize: '36px',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(201);
+
+    const btnW = Math.min(200, width - 64);
+
+    this.resumeBtn = this.add.rectangle(width / 2, height * 0.50, btnW, 50, COLORS.BUTTON_BG, 0.9)
+      .setDepth(201).setInteractive({ useHandCursor: true })
+      .on('pointerover', () => this.resumeBtn.setFillStyle(COLORS.BUTTON_HOVER, 0.9))
+      .on('pointerout', () => this.resumeBtn.setFillStyle(COLORS.BUTTON_BG, 0.9))
+      .on('pointerdown', () => this.resumeGame());
+    this.resumeBtn.setStrokeStyle(2, 0x66aaff);
+
+    this.resumeLabel = this.add.text(width / 2, height * 0.50, 'RESUME', {
+      fontSize: '22px',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5).setDepth(202);
+
+    this.quitBtn = this.add.rectangle(width / 2, height * 0.62, btnW, 50, 0x882222, 0.9)
+      .setDepth(201).setInteractive({ useHandCursor: true })
+      .on('pointerover', () => this.quitBtn.setFillStyle(0xaa3333, 0.9))
+      .on('pointerout', () => this.quitBtn.setFillStyle(0x882222, 0.9))
+      .on('pointerdown', () => {
+        this.resumeGame();
+        this.scene.start('MenuScene');
+      });
+    this.quitBtn.setStrokeStyle(2, 0xff6666);
+
+    this.quitLabel = this.add.text(width / 2, height * 0.62, 'QUIT', {
+      fontSize: '22px',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5).setDepth(202);
+  }
+
+  resumeGame() {
+    if (!this.isPaused) return;
+    this.isPaused = false;
+    this.physics.resume();
+    if (!this.isBossFight && !this.isTransitioning) {
+      this.asteroidTimer.paused = false;
+    }
+    this.tweens.resumeAll();
+
+    if (this.pauseOverlay) this.pauseOverlay.destroy();
+    if (this.pauseTitle) this.pauseTitle.destroy();
+    if (this.resumeBtn) this.resumeBtn.destroy();
+    if (this.resumeLabel) this.resumeLabel.destroy();
+    if (this.quitBtn) this.quitBtn.destroy();
+    if (this.quitLabel) this.quitLabel.destroy();
   }
 
   updatePrompt() {
@@ -176,7 +268,7 @@ export default class GameScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5).setDepth(95).setScale(0.5).setAlpha(0);
 
-    const announceBg = this.add.rectangle(width / 2, height / 2, width, 80, 0x000000, 0)
+    const announceBg = this.add.rectangle(width / 2, height / 2, Math.min(width - 32, BANNER_MAX_W), 80, 0x000000, 0)
       .setDepth(94);
 
     this.tweens.add({
@@ -355,7 +447,7 @@ export default class GameScene extends Phaser.Scene {
   showBossWarning(callback) {
     const { width, height } = this.scale;
 
-    const warningBg = this.add.rectangle(width / 2, height / 2, width, 100, 0x660000, 0)
+    const warningBg = this.add.rectangle(width / 2, height / 2, Math.min(width - 32, BANNER_MAX_W), 100, 0x660000, 0)
       .setDepth(92);
     const warningText = this.add.text(width / 2, height / 2, 'WARNING! BOSS INCOMING!', {
       fontSize: '28px',
@@ -693,7 +785,7 @@ export default class GameScene extends Phaser.Scene {
   showGoodJob() {
     const { width, height } = this.scale;
 
-    const bg = this.add.rectangle(width / 2, height / 2, width, 80, 0x003322, 0.7)
+    const bg = this.add.rectangle(width / 2, height / 2, Math.min(width - 32, BANNER_MAX_W), 80, 0x003322, 0.7)
       .setDepth(90).setAlpha(0);
     const text = this.add.text(width / 2, height / 2, 'GOOD JOB!', {
       fontSize: '36px',
@@ -733,7 +825,7 @@ export default class GameScene extends Phaser.Scene {
   showLevelUp(callback) {
     const { width, height } = this.scale;
 
-    const levelBg = this.add.rectangle(width / 2, height / 2, width, 80, 0x000033, 0.7)
+    const levelBg = this.add.rectangle(width / 2, height / 2, Math.min(width - 32, BANNER_MAX_W), 80, 0x000033, 0.7)
       .setDepth(90).setAlpha(0);
     const levelText = this.add.text(width / 2, height / 2, `LEVEL ${this.scoreManager.level}!`, {
       fontSize: '36px',
@@ -788,7 +880,7 @@ export default class GameScene extends Phaser.Scene {
   showUnlockAnnouncement(topicName) {
     const { width, height } = this.scale;
 
-    const bg = this.add.rectangle(width / 2, height / 2 + 60, width, 60, 0x226622, 0.8)
+    const bg = this.add.rectangle(width / 2, height / 2 + 60, Math.min(width - 32, BANNER_MAX_W), 60, 0x226622, 0.8)
       .setDepth(92).setAlpha(0);
     const text = this.add.text(width / 2, height / 2 + 60, `${topicName} Unlocked!`, {
       fontSize: '28px',

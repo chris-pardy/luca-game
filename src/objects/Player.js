@@ -48,17 +48,40 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.input.keyboard.on('keydown-D', () => this.switchLane(1));
     scene.input.keyboard.on('keydown-SPACE', () => this.fire(scene.time.now));
 
-    // Touch / click: tap your lane to shoot, tap another lane to move toward it
+    // Touch / click: center 50% = shoot, left 25% = move left, right 25% = move right
+    // Swipes override: horizontal drag always moves in swipe direction
+    const SWIPE_THRESHOLD = 30;
+
     scene.input.on('pointerdown', (pointer) => {
-      const tappedLane = this.getTappedLane(pointer.x);
-      if (tappedLane === this.lane) {
-        this.fire(scene.time.now);
-      } else if (tappedLane < this.lane) {
-        this.switchLane(-1);
-      } else {
-        this.switchLane(1);
+      if (scene.isPaused) return;
+      this.pointerStartX = pointer.x;
+      this.pointerHandled = false;
+    });
+
+    scene.input.on('pointermove', (pointer) => {
+      if (scene.isPaused || !pointer.isDown || this.pointerHandled) return;
+      const dx = pointer.x - this.pointerStartX;
+      if (Math.abs(dx) >= SWIPE_THRESHOLD) {
+        this.pointerHandled = true;
+        this.switchLane(dx < 0 ? -1 : 1);
       }
     });
+
+    scene.input.on('pointerup', (pointer) => {
+      if (scene.isPaused || this.pointerHandled) return;
+      // Tap — use zones: left 25%, center 50%, right 25%
+      const w = scene.scale.width;
+      if (pointer.x < w * 0.25) {
+        this.switchLane(-1);
+      } else if (pointer.x > w * 0.75) {
+        this.switchLane(1);
+      } else {
+        this.fire(scene.time.now);
+      }
+    });
+
+    this.pointerStartX = 0;
+    this.pointerHandled = false;
   }
 
   switchLane(direction) {
@@ -77,14 +100,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         this.setTexture('ship');
       },
     });
-  }
-
-  getTappedLane(x) {
-    const laneCount = this.lanePositions.length;
-    const width = this.scene.scale.width;
-    const sectionWidth = width / laneCount;
-    const lane = Math.floor(x / sectionWidth);
-    return Phaser.Math.Clamp(lane, 0, laneCount - 1);
   }
 
   update() {
