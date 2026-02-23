@@ -19,12 +19,13 @@ export default class Asteroid extends Phaser.Physics.Arcade.Sprite {
     }).setOrigin(0.5).setDepth(5);
 
     this.isTarget = false;
+    this.lane = -1;
     this.setActive(false).setVisible(false);
     this.label.setVisible(false);
     this.setDepth(4);
   }
 
-  spawn(x, labelData, speedMultiplier, textureKey) {
+  spawn(x, labelData, speedMultiplier, textureKey, maxSpeed) {
     this.setTexture(textureKey || Phaser.Utils.Array.GetRandom(ASTEROID_KEYS));
     this.setPosition(x, -SIZES.ASTEROID);
     this.setActive(true).setVisible(true);
@@ -38,7 +39,9 @@ export default class Asteroid extends Phaser.Physics.Arcade.Sprite {
 
     this.clearTint();
 
-    const speed = Phaser.Math.Between(SPEEDS.ASTEROID_MIN, SPEEDS.ASTEROID_MAX) * (speedMultiplier || 1);
+    const min = SPEEDS.ASTEROID_MIN * (speedMultiplier || 1);
+    const max = maxSpeed != null ? maxSpeed : SPEEDS.ASTEROID_MAX * (speedMultiplier || 1);
+    const speed = Phaser.Math.Between(Math.min(min, max), max);
     this.setVelocityY(speed);
     this.setVelocityX(0);
     // Slow rotation for visual flair
@@ -61,5 +64,6 @@ export default class Asteroid extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(0, 0);
     this.setAngularVelocity(0);
     this.label.setVisible(false);
+    this.lane = -1;
   }
 }

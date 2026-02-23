@@ -524,6 +524,14 @@ export default class GameScene extends Phaser.Scene {
     const speedMult = 1 + (this.scoreManager.level - 1) * 0.1;
     const bossX = this.boss.x;
     const bossY = this.boss.y + SIZES.BOSS.h / 2;
+    // Find closest lane for overlap tracking
+    let closestLane = 0;
+    let closestDist = Infinity;
+    for (let l = 0; l < LANES.COUNT; l++) {
+      const d = Math.abs(this.laneXPositions[l] - bossX);
+      if (d < closestDist) { closestDist = d; closestLane = l; }
+    }
+    asteroid.lane = closestLane;
     asteroid.spawn(bossX, labelData, speedMult, 'bomb');
     asteroid.setPosition(bossX, bossY);
     asteroid.label.setPosition(bossX, bossY);
@@ -728,10 +736,32 @@ export default class GameScene extends Phaser.Scene {
     const asteroid = this.asteroids.getFirstDead(false);
     if (!asteroid) return;
 
-    const lane = Phaser.Math.Between(0, LANES.COUNT - 1);
+    // Find lanes with enough vertical clearance to avoid overlap
+    const MIN_GAP = SIZES.ASTEROID * 3;
+    const activeAsteroids = this.asteroids.getChildren().filter(a => a.active);
+    const openLanes = [];
+    for (let l = 0; l < LANES.COUNT; l++) {
+      const blocked = activeAsteroids.some(a => a.lane === l && a.y < MIN_GAP);
+      if (!blocked) openLanes.push(l);
+    }
+    if (openLanes.length === 0) return; // skip this spawn, all lanes blocked
+
+    const lane = Phaser.Utils.Array.GetRandom(openLanes);
     const x = this.laneXPositions[lane];
     const speedMult = 1 + (this.scoreManager.level - 1) * 0.15;
-    asteroid.spawn(x, labelData, speedMult);
+
+    // Cap speed so we don't overtake a slower asteroid ahead in the same lane
+    const sameLaneAhead = activeAsteroids.filter(a => a.lane === lane && a.active);
+    let maxSpeed = SPEEDS.ASTEROID_MAX * speedMult;
+    for (const a of sameLaneAhead) {
+      const aSpeed = a.body.velocity.y;
+      if (aSpeed > 0 && aSpeed < maxSpeed) {
+        maxSpeed = aSpeed;
+      }
+    }
+
+    asteroid.lane = lane;
+    asteroid.spawn(x, labelData, speedMult, null, maxSpeed);
   }
 
   triggerLevelUp() {

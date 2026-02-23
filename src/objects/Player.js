@@ -70,11 +70,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.input.on('pointerup', (pointer) => {
       if (scene.isPaused || this.pointerHandled) return;
       // Tap — use zones: left 25%, center 50%, right 25%
+      // If already in the tapped lane, shoot instead of moving
       const w = scene.scale.width;
       if (pointer.x < w * 0.25) {
-        this.switchLane(-1);
+        if (this.lane === 0) {
+          this.fire(scene.time.now);
+        } else {
+          this.switchLane(-1);
+        }
       } else if (pointer.x > w * 0.75) {
-        this.switchLane(1);
+        if (this.lane === this.lanePositions.length - 1) {
+          this.fire(scene.time.now);
+        } else {
+          this.switchLane(1);
+        }
       } else {
         this.fire(scene.time.now);
       }
